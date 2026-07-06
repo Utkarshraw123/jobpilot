@@ -27,6 +27,7 @@ export default function Setup() {
 
   const save = async () => {
     if (!f.name || !f.cvText) { setMsg("Name and CV text are required."); return; }
+    if (!f.searchLocation && !f.location) { setMsg("A location is required (fill 'Location' or 'Job search location') so job scans know where to search."); return; }
     setBusy(true); setMsg("Building your master profile…");
     try {
       let p = localStorage.getItem("pw") || "";
@@ -51,7 +52,15 @@ export default function Setup() {
         text: built.text,
         fixedRoles: f.fixedRoles.filter((r) => r.title),
         education,
-        queries: (f.queries ? f.queries.split(",").map((s) => s.trim()) : built.queries || []).filter(Boolean),
+        // Guaranteed non-empty: typed queries, else AI suggestions, else the
+        // fixed role titles, else the headline itself — a profile must
+        // never save with zero searchable queries.
+        queries: [
+          f.queries.split(",").map((s) => s.trim()).filter(Boolean),
+          (built.queries || []).filter(Boolean),
+          f.fixedRoles.map((r) => r.title).filter(Boolean),
+          [f.headline || built.headline].filter(Boolean),
+        ].find((arr) => arr.length > 0) || [],
         location: f.searchLocation || f.location,
         dreamCompanies: f.dreamCompanies.split(",").map((s) => s.trim()).filter(Boolean),
         sponsorshipNeeded: f.sponsorshipNeeded,

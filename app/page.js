@@ -18,6 +18,8 @@ export default function Dashboard() {
   const [msg, setMsg] = useState("");
   const [scorecards, setScorecards] = useState({});
   const [contacts, setContacts] = useState({});
+  const [editingSearch, setEditingSearch] = useState(false);
+  const [searchForm, setSearchForm] = useState({ queries: "", location: "", dreamCompanies: "" });
   const [tick, setTick] = useState(0);
 
   const active = pid ? profiles[pid] : null;
@@ -42,6 +44,26 @@ export default function Dashboard() {
     setJobs(JSON.parse(localStorage.getItem(jobsKey(id)) || "[]"));
   };
   const persist = (next) => { setJobs(next); localStorage.setItem(jobsKey(pid), JSON.stringify(next)); };
+  const openSearchEditor = () => {
+    setSearchForm({
+      queries: (active?.queries || []).join(", "),
+      location: active?.location || "",
+      dreamCompanies: (active?.dreamCompanies || []).join(", "),
+    });
+    setEditingSearch(true);
+  };
+  const saveSearchSettings = () => {
+    const queries = searchForm.queries.split(",").map((s) => s.trim()).filter(Boolean);
+    const location = searchForm.location.trim();
+    if (!queries.length || !location) { setMsg("Both a target search and a location are required."); return; }
+    const dreamCompanies = searchForm.dreamCompanies.split(",").map((s) => s.trim()).filter(Boolean);
+    const updated = { ...active, queries, location, dreamCompanies };
+    const next = { ...profiles, [pid]: updated };
+    setProfiles(next);
+    localStorage.setItem("jp_profiles", JSON.stringify(next));
+    setEditingSearch(false);
+    setMsg("Search settings saved.");
+  };
   const pw = () => {
     let p = localStorage.getItem("pw") || "";
     if (!p) { p = prompt("Dashboard password:") || ""; localStorage.setItem("pw", p); }
@@ -137,11 +159,47 @@ export default function Dashboard() {
         <p>Scans the last 7 days · scores fit vs the active profile (0–100) · one-page tailored CVs</p>
       </header>
 
+      {active && (!active.queries?.length || !active.location) && (
+        <div className="job" style={{ borderColor: "#e0a800", background: "#fff8e6" }}>
+          <b>⚠️ This profile is missing search settings</b> — {active.label} won't be able to scan for jobs until
+          you add at least one target search and a location.{" "}
+          <button className="primary" onClick={openSearchEditor}>Fix it now</button>
+        </div>
+      )}
+
+      {editingSearch && (
+        <div className="job">
+          <b>Edit search settings — {active?.label}</b>
+          <div style={{ marginTop: 10 }}>
+            <label style={{ display: "block", fontWeight: 650, marginBottom: 3 }}>Target role searches (comma-separated) *</label>
+            <input type="text" style={{ width: "100%", padding: "8px 10px", border: "1px solid #cfd8e3", borderRadius: 8 }}
+              value={searchForm.queries} onChange={(e) => setSearchForm({ ...searchForm, queries: e.target.value })}
+              placeholder="product manager, business analyst" />
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <label style={{ display: "block", fontWeight: 650, marginBottom: 3 }}>Job search location *</label>
+            <input type="text" style={{ width: "100%", padding: "8px 10px", border: "1px solid #cfd8e3", borderRadius: 8 }}
+              value={searchForm.location} onChange={(e) => setSearchForm({ ...searchForm, location: e.target.value })}
+              placeholder="London, United Kingdom" />
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <label style={{ display: "block", fontWeight: 650, marginBottom: 3 }}>Dream companies (comma-separated, optional)</label>
+            <input type="text" style={{ width: "100%", padding: "8px 10px", border: "1px solid #cfd8e3", borderRadius: 8 }}
+              value={searchForm.dreamCompanies} onChange={(e) => setSearchForm({ ...searchForm, dreamCompanies: e.target.value })} />
+          </div>
+          <div className="actions" style={{ marginTop: 12 }}>
+            <button className="primary" onClick={saveSearchSettings}>Save</button>
+            <button className="ghost" onClick={() => setEditingSearch(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
+
       <div className="bar" style={{ marginBottom: 4 }}>
         <select value={pid} onChange={(e) => switchProfile(e.target.value)} style={{ fontWeight: 650 }}>
           {Object.values(profiles).map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
           <option value="__new">＋ New profile…</option>
         </select>
+        <button className="ghost" onClick={openSearchEditor}>⚙️ Edit search settings</button>
         <button className={tab === "all" ? "primary" : "ghost"} onClick={() => setTab("all")}>All jobs</button>
         <button className={tab === "dream" ? "primary" : "ghost"} onClick={() => setTab("dream")}>
           ⭐ Dream companies {jobs.filter((j) => j.dream && j.isNew).length > 0 && <span className="badge new">{jobs.filter((j) => j.dream && j.isNew).length} new</span>}
