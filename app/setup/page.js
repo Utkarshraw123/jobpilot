@@ -30,8 +30,8 @@ function fromProfile(p) {
     name: p.contact?.name || "", location: p.contact?.location || "", phone: p.contact?.phone || "",
     email: p.contact?.email || "", linkedin: p.contact?.linkedin || "", headline: p.headline || "",
     cvText: p.raw?.cvText || "", extra: p.raw?.extra || "",
-    queries: (p.queries || []).join(", "), searchLocation: p.location || "",
-    dreamCompanies: (p.dreamCompanies || []).join(", "), neverMention: p.raw?.neverMention || "",
+    queries: (p.queries || []).join("\n"), searchLocation: p.location || "",
+    dreamCompanies: (p.dreamCompanies || []).join("\n"), neverMention: p.raw?.neverMention || "",
     education: (p.education || []).map((e) => `${e.text} | ${e.dates}`).join("\n"),
     sponsorshipNeeded: p.sponsorshipNeeded || "unsure", fixedRoles: roles,
   };
@@ -111,13 +111,13 @@ function SetupInner() {
         // fixed role titles, else the headline itself — a profile must
         // never save with zero searchable queries.
         queries: [
-          f.queries.split(",").map((s) => s.trim()).filter(Boolean),
+          f.queries.split(/[,\n]/).map((s) => s.trim()).filter(Boolean),
           (built.queries || []).filter(Boolean),
           f.fixedRoles.map((r) => r.title).filter(Boolean),
           [f.headline || built.headline].filter(Boolean),
         ].find((arr) => arr.length > 0) || [],
         location: f.searchLocation || f.location,
-        dreamCompanies: f.dreamCompanies.split(",").map((s) => s.trim()).filter(Boolean),
+        dreamCompanies: f.dreamCompanies.split(/[,\n]/).map((s) => s.trim()).filter(Boolean),
         sponsorshipNeeded: f.sponsorshipNeeded,
       };
       const profiles = JSON.parse(localStorage.getItem("jp_profiles") || "{}");
@@ -197,11 +197,15 @@ function SetupInner() {
       </Section>
 
       <Section title="Job search settings">
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <F label="Target role searches" hint="Comma-separated; blank = AI suggests from CV"><input style={inp} value={f.queries} onChange={set("queries")} placeholder="product manager, business analyst" /></F>
-          <F label="Job search location"><input style={inp} value={f.searchLocation} onChange={set("searchLocation")} placeholder="London, United Kingdom" /></F>
-        </div>
-        <F label="Dream companies" hint="Comma-separated — powers the ⭐ Dream tab (optional)"><textarea style={{ ...inp, height: 60 }} value={f.dreamCompanies} onChange={set("dreamCompanies")} /></F>
+        <F label="Job search location"><input style={inp} value={f.searchLocation} onChange={set("searchLocation")} placeholder="London, United Kingdom" /></F>
+        <F label="Target role searches" hint="One per line or comma-separated; blank = AI suggests from CV. Room for 20+ at a glance.">
+          <textarea style={{ ...inp, height: 220, fontFamily: "inherit" }} value={f.queries} onChange={set("queries")}
+            placeholder={"product manager\nbusiness analyst\ndata analyst\n..."} />
+        </F>
+        <F label="Dream companies" hint="One per line or comma-separated — powers the ⭐ Dream tab (optional). Room for 20+ at a glance.">
+          <textarea style={{ ...inp, height: 220, fontFamily: "inherit" }} value={f.dreamCompanies} onChange={set("dreamCompanies")}
+            placeholder={"Google\nMicrosoft\nStripe\n..."} />
+        </F>
         <F label="Do you need visa sponsorship?" hint="Powers the 🛂 Sponsorship tab — searches are boosted with sponsorship-related terms and postings are flagged by detected language.">
           <select style={inp} value={f.sponsorshipNeeded} onChange={set("sponsorshipNeeded")}>
             <option value="yes">Yes — I need visa sponsorship</option>
