@@ -19,6 +19,29 @@ export default function Setup() {
   });
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState("");
+
+  const handleUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true); setUploadMsg("");
+    try {
+      let p = localStorage.getItem("pw") || "";
+      if (!p) { p = prompt("Dashboard password:") || ""; localStorage.setItem("pw", p); }
+      const form = new FormData();
+      form.append("file", file);
+      const r = await fetch("/api/parse-cv", { method: "POST", headers: { "x-pass": p }, body: form });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || `server error ${r.status}`);
+      setF((prev) => ({ ...prev, cvText: d.text }));
+      setUploadMsg(`Extracted ${d.chars.toLocaleString()} characters from "${file.name}" — review it below and edit anything that got garbled before continuing.`);
+    } catch (err) {
+      setUploadMsg(`Upload failed: ${err.message}`);
+    }
+    setUploading(false);
+    e.target.value = "";
+  };
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const setRole = (i, k) => (e) => {
     const fixedRoles = f.fixedRoles.map((r, j) => (j === i ? { ...r, [k]: e.target.value } : r));
@@ -92,7 +115,13 @@ export default function Setup() {
         <F label="LinkedIn"><input style={inp} value={f.linkedin} onChange={set("linkedin")} placeholder="linkedin.com/in/you" /></F>
       </div>
 
-      <F label="Paste your full CV text *" hint="Copy everything from your current CV — the AI builds the master profile from this.">
+      <F label="Upload your CV (recommended)" hint="PDF, DOCX, or TXT — parses the real file instead of relying on manual copy-paste, so nothing gets missed or garbled.">
+        <input type="file" accept=".pdf,.docx,.txt,.md" onChange={handleUpload} disabled={uploading} />
+        {uploading && <div className="meta" style={{ marginTop: 4 }}>Parsing…</div>}
+        {uploadMsg && <div className="meta" style={{ marginTop: 4, color: uploadMsg.startsWith("Upload failed") ? "#b00020" : "#0a7a3d" }}>{uploadMsg}</div>}
+      </F>
+
+      <F label="CV text *" hint="Auto-filled after upload — check it over (or paste manually here instead).">
         <textarea style={{ ...inp, height: 180 }} value={f.cvText} onChange={set("cvText")} />
       </F>
       <F label="Extra context" hint="Anything the CV doesn't say: confirmed achievements, tools you've really used, preferences, career story. More detail = better CVs.">
