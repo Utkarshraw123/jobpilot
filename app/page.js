@@ -14,6 +14,7 @@ export default function Dashboard() {
   const [minScore, setMinScore] = useState(0);
   const [tab, setTab] = useState("all");
   const [sponsorFilter, setSponsorFilter] = useState("yes");
+  const [bestFitMin, setBestFitMin] = useState(70);
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   const [scorecards, setScorecards] = useState({});
@@ -113,15 +114,41 @@ export default function Dashboard() {
 
   const setStatus = (id, status) => persist(jobs.map((j) => (j.id === id ? { ...j, status } : j)));
 
-  const shown = useMemo(
-    () =>
-      jobs.filter((j) => {
-        const inTab = tab === "dream" ? j.dream : tab === "sponsor" ? j.sponsorTab : !j.dream && !j.sponsorTab;
-        const sponsorOk = tab !== "sponsor" || sponsorFilter === "all" || j.sponsorship === sponsorFilter;
-        return inTab && sponsorOk && j.score >= minScore && `${j.title} ${j.company} ${j.location}`.toLowerCase().includes(q.toLowerCase());
-      }),
-    [jobs, q, minScore, tab, sponsorFilter]
-  );
+  const analyzeBestFit = async () => {
+    if (!active?.text) return;
+    const candidates = jobs.filter((j) => j.fitScore == null).sort((a, b) => b.score - a.score).slice(0, 40);
+    if (!candidates.length) { setMsg("Every scanned job already has a fit analysis. Scan for more jobs first."); return; }
+    setBusy("bestfit"); setMsg("");
+    try {
+      const r = await fetch("/api/best-fit", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-pass": pw() },
+        body: JSON.stringify({
+          jobs: candidates.map((j) => ({ id: j.id, title: j.title, company: j.company, location: j.location, description: j.description })),
+          profileText: active.text,
+        }),
+      });
+      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `server error ${r.status} — try again`);
+      const { results } = await r.json();
+      const byId = Object.fromEntries(results.map((x) => [x.id, x]));
+      const next = jobs.map((j) => (byId[j.id] ? { ...j, fitScore: byId[j.id].fit_score, fitWhy: byId[j.id].why } : j));
+      persist(next);
+      const strong = results.filter((x) => x.fit_score >= bestFitMin).length;
+      setMsg(`Analyzed ${results.length} jobs — ${strong} scored ${bestFitMin}+ for genuine fit.`);
+    } catch (e) { setMsg(`Analysis failed: ${e.message}`); if (String(e.message).includes("401")) localStorage.removeItem("pw"); }
+    setBusy("");
+  };
+
+  const shown = useMemo(() => {
+    if (tab === "bestfit")
+      return jobs.filter((j) => j.fitScore != null && j.fitScore >= bestFitMin && `${j.title} ${j.company} ${j.location}`.toLowerCase().includes(q.toLowerCase()))
+        .sort((a, b) => b.fitScore - a.fitScore);
+    return jobs.filter((j) => {
+      const inTab = tab === "dream" ? j.dream : tab === "sponsor" ? j.sponsorTab : !j.dream && !j.sponsorTab;
+      const sponsorOk = tab !== "sponsor" || sponsorFilter === "all" || j.sponsorship === sponsorFilter;
+      return inTab && sponsorOk && j.score >= minScore && `${j.title} ${j.company} ${j.location}`.toLowerCase().includes(q.toLowerCase());
+    });
+  }, [jobs, q, minScore, tab, sponsorFilter, bestFitMin]);
   const stats = {
     total: jobs.length,
     strong: jobs.filter((j) => j.score >= 75).length,
@@ -158,6 +185,9 @@ export default function Dashboard() {
         <button className={tab === "sponsor" ? "primary" : "ghost"} onClick={() => setTab("sponsor")}>
           🛂 Sponsorship {jobs.filter((j) => j.sponsorTab && j.isNew).length > 0 && <span className="badge new">{jobs.filter((j) => j.sponsorTab && j.isNew).length} new</span>}
         </button>
+        <button className={tab === "bestfit" ? "primary" : "ghost"} onClick={() => setTab("bestfit")}>
+          🎯 Best Fit {jobs.filter((j) => j.fitScore >= bestFitMin).length > 0 && <span className="badge new">{jobs.filter((j) => j.fitScore >= bestFitMin).length}</span>}
+        </button>
       </div>
       {tab === "sponsor" && (
         <div className="bar" style={{ marginTop: -4 }}>
@@ -170,28 +200,53 @@ export default function Dashboard() {
           </select>
         </div>
       )}
+      {tab === "bestfit" && (
+        <div className="bar" style={{ marginTop: -4 }}>
+          <span className="meta">Minimum genuine fit:</span>
+          <select value={bestFitMin} onChange={(e) => setBestFitMin(+e.target.value)}>
+            <option value={60}>60+</option>
+            <option value={70}>70+</option>
+            <option value={80}>80+</option>
+          </select>
+          <span className="meta">{jobs.filter((j) => j.fitScore == null).length} scanned jobs not yet analyzed</span>
+        </div>
+      )}
       <div className="bar">
         <div className="stat"><b>{stats.total}</b>tracked</div>
         <div className="stat"><b>{stats.strong}</b>strong (75+)</div>
         <div className="stat"><b>{stats.applied}</b>in progress</div>
-        <button className="primary" onClick={() => refresh(tab)} disabled={busy === "refresh"}>
-          {busy === "refresh" ? "Scanning LinkedIn…" : remaining > 0 ? `↻ Next scan in ${fmtLeft(remaining)}` : tab === "dream" ? "↻ Scan dream companies" : tab === "sponsor" ? "↻ Scan sponsorship jobs" : "↻ Scan for new jobs"}
-        </button>
+        {tab === "bestfit" ? (
+          <button className="primary" onClick={analyzeBestFit} disabled={busy === "bestfit"}>
+            {busy === "bestfit" ? "Analyzing against your CV…" : "🧠 Analyze best fit"}
+          </button>
+        ) : (
+          <button className="primary" onClick={() => refresh(tab)} disabled={busy === "refresh"}>
+            {busy === "refresh" ? "Scanning LinkedIn…" : remaining > 0 ? `↻ Next scan in ${fmtLeft(remaining)}` : tab === "dream" ? "↻ Scan dream companies" : tab === "sponsor" ? "↻ Scan sponsorship jobs" : "↻ Scan for new jobs"}
+          </button>
+        )}
         <input type="text" placeholder="Search title / company…" value={q} onChange={(e) => setQ(e.target.value)} />
-        <select value={minScore} onChange={(e) => setMinScore(+e.target.value)}>
-          <option value={0}>All scores</option>
-          <option value={50}>50+ (partial)</option>
-          <option value={75}>75+ (strong)</option>
-        </select>
+        {tab !== "bestfit" && (
+          <select value={minScore} onChange={(e) => setMinScore(+e.target.value)}>
+            <option value={0}>All scores</option>
+            <option value={50}>50+ (partial)</option>
+            <option value={75}>75+ (strong)</option>
+          </select>
+        )}
         {msg && <span className="msg">{msg}</span>}
       </div>
 
-      {shown.length === 0 && <p className="meta" style={{ margin: "30px 0" }}>No jobs yet for {active?.label} — hit ↻ Scan to pull the last 7 days.</p>}
+      {shown.length === 0 && tab === "bestfit" && (
+        <p className="meta" style={{ margin: "30px 0" }}>
+          No best-fit jobs yet — click <b>🧠 Analyze best fit</b> to compare your scanned jobs against your actual CV
+          (scan for jobs first in the other tabs if you haven't already).
+        </p>
+      )}
+      {shown.length === 0 && tab !== "bestfit" && <p className="meta" style={{ margin: "30px 0" }}>No jobs yet for {active?.label} — hit ↻ Scan to pull the last 7 days.</p>}
 
       {shown.map((j) => (
         <div className="job" key={j.id}>
           <div className="head" onClick={() => setOpen(open === j.id ? null : j.id)}>
-            <span className={`score ${band(j.score)}`}>{j.score}</span>
+            <span className={`score ${band(tab === "bestfit" ? j.fitScore : j.score)}`}>{tab === "bestfit" ? j.fitScore : j.score}</span>
             <span>
               <span className="title">{j.title}</span> — {j.company}{" "}
               {j.isNew && <span className="badge new">NEW</span>}
@@ -205,7 +260,11 @@ export default function Dashboard() {
           </div>
           {open === j.id && (
             <div className="detail">
-              <div className="note">{(j.fit_note || "").replace("Why: ", "Why it fits: ").replace(" Missing: ", "\nWhat's missing: ")}</div>
+              <div className="note">
+                {tab === "bestfit" && j.fitWhy
+                  ? `CV-based fit (${j.fitScore}/100): ${j.fitWhy}`
+                  : (j.fit_note || "").replace("Why: ", "Why it fits: ").replace(" Missing: ", "\nWhat's missing: ")}
+              </div>
               <div className="actions">
                 <a href={j.url} target="_blank" rel="noreferrer"><button className="ghost">Open posting ↗</button></a>
                 <button className="primary" onClick={() => generate(j, "cv")} disabled={busy === j.id + "cv"}>
