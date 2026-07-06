@@ -13,6 +13,7 @@ export default function Dashboard() {
   const [q, setQ] = useState("");
   const [minScore, setMinScore] = useState(0);
   const [tab, setTab] = useState("all");
+  const [sponsorFilter, setSponsorFilter] = useState("yes");
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   const [scorecards, setScorecards] = useState({});
@@ -60,7 +61,7 @@ export default function Dashboard() {
       const r = await fetch("/api/refresh", {
         method: "POST",
         headers: { "content-type": "application/json", "x-pass": pw() },
-        body: JSON.stringify({ mode, queries: active.queries, location: active.location, dreamCompanies: active.dreamCompanies }),
+        body: JSON.stringify({ mode, queries: active.queries, location: active.location, dreamCompanies: active.dreamCompanies, seniorOk: active.seniorOk }),
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `server error ${r.status} — try again`);
       const fresh = await r.json();
@@ -113,8 +114,13 @@ export default function Dashboard() {
   const setStatus = (id, status) => persist(jobs.map((j) => (j.id === id ? { ...j, status } : j)));
 
   const shown = useMemo(
-    () => jobs.filter((j) => (tab === "dream" ? j.dream : !j.dream) && j.score >= minScore && `${j.title} ${j.company} ${j.location}`.toLowerCase().includes(q.toLowerCase())),
-    [jobs, q, minScore, tab]
+    () =>
+      jobs.filter((j) => {
+        const inTab = tab === "dream" ? j.dream : tab === "sponsor" ? j.sponsorTab : !j.dream && !j.sponsorTab;
+        const sponsorOk = tab !== "sponsor" || sponsorFilter === "all" || j.sponsorship === sponsorFilter;
+        return inTab && sponsorOk && j.score >= minScore && `${j.title} ${j.company} ${j.location}`.toLowerCase().includes(q.toLowerCase());
+      }),
+    [jobs, q, minScore, tab, sponsorFilter]
   );
   const stats = {
     total: jobs.length,
@@ -140,13 +146,27 @@ export default function Dashboard() {
         <button className={tab === "dream" ? "primary" : "ghost"} onClick={() => setTab("dream")}>
           ⭐ Dream companies {jobs.filter((j) => j.dream && j.isNew).length > 0 && <span className="badge new">{jobs.filter((j) => j.dream && j.isNew).length} new</span>}
         </button>
+        <button className={tab === "sponsor" ? "primary" : "ghost"} onClick={() => setTab("sponsor")}>
+          🛂 Sponsorship {jobs.filter((j) => j.sponsorTab && j.isNew).length > 0 && <span className="badge new">{jobs.filter((j) => j.sponsorTab && j.isNew).length} new</span>}
+        </button>
       </div>
+      {tab === "sponsor" && (
+        <div className="bar" style={{ marginTop: -4 }}>
+          <span className="meta">Show:</span>
+          <select value={sponsorFilter} onChange={(e) => setSponsorFilter(e.target.value)}>
+            <option value="all">All scanned</option>
+            <option value="yes">Sponsorship confirmed</option>
+            <option value="no">No sponsorship mentioned</option>
+            <option value="unclear">Unclear — verify directly</option>
+          </select>
+        </div>
+      )}
       <div className="bar">
         <div className="stat"><b>{stats.total}</b>tracked</div>
         <div className="stat"><b>{stats.strong}</b>strong (75+)</div>
         <div className="stat"><b>{stats.applied}</b>in progress</div>
         <button className="primary" onClick={() => refresh(tab)} disabled={busy === "refresh"}>
-          {busy === "refresh" ? "Scanning LinkedIn…" : remaining > 0 ? `↻ Next scan in ${fmtLeft(remaining)}` : tab === "dream" ? "↻ Scan dream companies" : "↻ Scan for new jobs"}
+          {busy === "refresh" ? "Scanning LinkedIn…" : remaining > 0 ? `↻ Next scan in ${fmtLeft(remaining)}` : tab === "dream" ? "↻ Scan dream companies" : tab === "sponsor" ? "↻ Scan sponsorship jobs" : "↻ Scan for new jobs"}
         </button>
         <input type="text" placeholder="Search title / company…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select value={minScore} onChange={(e) => setMinScore(+e.target.value)}>
@@ -166,6 +186,8 @@ export default function Dashboard() {
             <span>
               <span className="title">{j.title}</span> — {j.company}{" "}
               {j.isNew && <span className="badge new">NEW</span>}
+              {j.sponsorTab && j.sponsorship === "yes" && <span className="badge new">🛂 sponsorship confirmed</span>}
+              {j.sponsorTab && j.sponsorship === "no" && <span className="badge">🛂 no sponsorship mentioned</span>}
               <div className="meta">
                 {j.location} · {j.source} · posted {j.posted_date} {j.salary ? `· ${j.salary}` : ""}
               </div>

@@ -14,7 +14,7 @@ export default function Setup() {
   const [f, setF] = useState({
     name: "", location: "", phone: "", email: "", linkedin: "", headline: "",
     cvText: "", extra: "", queries: "", searchLocation: "", dreamCompanies: "",
-    neverMention: "", education: "",
+    neverMention: "", education: "", sponsorshipNeeded: "unsure",
     fixedRoles: [{ title: "", company: "", dates: "" }, { title: "", company: "", dates: "" }, { title: "", company: "", dates: "" }],
   });
   const [busy, setBusy] = useState(false);
@@ -54,6 +54,7 @@ export default function Setup() {
         queries: (f.queries ? f.queries.split(",").map((s) => s.trim()) : built.queries || []).filter(Boolean),
         location: f.searchLocation || f.location,
         dreamCompanies: f.dreamCompanies.split(",").map((s) => s.trim()).filter(Boolean),
+        sponsorshipNeeded: f.sponsorshipNeeded,
       };
       const profiles = JSON.parse(localStorage.getItem("jp_profiles") || "{}");
       profiles[id] = profile;
@@ -108,6 +109,13 @@ export default function Setup() {
         <F label="Job search location"><input style={inp} value={f.searchLocation} onChange={set("searchLocation")} placeholder="London, United Kingdom" /></F>
       </div>
       <F label="Dream companies" hint="Comma-separated — powers the ⭐ Dream tab (optional)"><textarea style={{ ...inp, height: 60 }} value={f.dreamCompanies} onChange={set("dreamCompanies")} /></F>
+      <F label="Do you need visa sponsorship?" hint="Powers the 🛂 Sponsorship tab — searches are boosted with sponsorship-related terms and postings are flagged by detected language.">
+        <select style={inp} value={f.sponsorshipNeeded} onChange={set("sponsorshipNeeded")}>
+          <option value="yes">Yes — I need visa sponsorship</option>
+          <option value="no">No — I already have the right to work</option>
+          <option value="unsure">Show me both — let me filter</option>
+        </select>
+      </F>
       <F label="Never mention on CVs" hint="e.g. a stopgap job, visa status, anything private"><input style={inp} value={f.neverMention} onChange={set("neverMention")} /></F>
       <F label="One-line headline" hint="Used in outreach messages; blank = AI suggests"><input style={inp} value={f.headline} onChange={set("headline")} placeholder="a fintech product professional, London" /></F>
 
