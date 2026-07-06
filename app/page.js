@@ -129,12 +129,13 @@ export default function Dashboard() {
         }),
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `server error ${r.status} — try again`);
-      const { results } = await r.json();
+      const { results, failedBatches } = await r.json();
       const byId = Object.fromEntries(results.map((x) => [x.id, x]));
       const next = jobs.map((j) => (byId[j.id] ? { ...j, fitScore: byId[j.id].fit_score, fitWhy: byId[j.id].why } : j));
       persist(next);
       const strong = results.filter((x) => x.fit_score >= bestFitMin).length;
-      setMsg(`Analyzed ${results.length} jobs — ${strong} scored ${bestFitMin}+ for genuine fit.`);
+      const retryNote = failedBatches ? " Some jobs weren't analyzed due to a hiccup — click Analyze again to retry just those." : "";
+      setMsg(`Analyzed ${results.length} jobs — ${strong} scored ${bestFitMin}+ for genuine fit.${retryNote}`);
     } catch (e) { setMsg(`Analysis failed: ${e.message}`); if (String(e.message).includes("401")) localStorage.removeItem("pw"); }
     setBusy("");
   };
