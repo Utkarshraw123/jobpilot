@@ -19,7 +19,7 @@ const inp = { width: "100%", padding: "8px 10px", border: "1px solid #cfd8e3", b
 const EMPTY = {
   name: "", location: "", phone: "", email: "", linkedin: "", headline: "",
   cvText: "", extra: "", queries: "", searchLocation: "", dreamCompanies: "",
-  neverMention: "", education: "", sponsorshipNeeded: "unsure",
+  neverMention: "", education: "", sponsorshipNeeded: "unsure", radiusMiles: "",
   fixedRoles: [{ title: "", company: "", dates: "" }, { title: "", company: "", dates: "" }, { title: "", company: "", dates: "" }],
 };
 
@@ -33,7 +33,7 @@ function fromProfile(p) {
     queries: (p.queries || []).join("\n"), searchLocation: p.location || "",
     dreamCompanies: (p.dreamCompanies || []).join("\n"), neverMention: p.raw?.neverMention || "",
     education: (p.education || []).map((e) => `${e.text} | ${e.dates}`).join("\n"),
-    sponsorshipNeeded: p.sponsorshipNeeded || "unsure", fixedRoles: roles,
+    sponsorshipNeeded: p.sponsorshipNeeded || "unsure", radiusMiles: p.radiusMiles || "", fixedRoles: roles,
   };
 }
 
@@ -119,6 +119,7 @@ function SetupInner() {
         location: f.searchLocation || f.location,
         dreamCompanies: f.dreamCompanies.split(/[,\n]/).map((s) => s.trim()).filter(Boolean),
         sponsorshipNeeded: f.sponsorshipNeeded,
+        radiusMiles: f.radiusMiles,
       };
       const profiles = JSON.parse(localStorage.getItem("jp_profiles") || "{}");
       profiles[id] = profile;
@@ -197,7 +198,19 @@ function SetupInner() {
       </Section>
 
       <Section title="Job search settings">
-        <F label="Job search location"><input style={inp} value={f.searchLocation} onChange={set("searchLocation")} placeholder="London, United Kingdom" /></F>
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+          <F label="Job search location"><input style={inp} value={f.searchLocation} onChange={set("searchLocation")} placeholder="London, United Kingdom" /></F>
+          <F label="Search radius" hint="LinkedIn only supports these exact radii (no 30mi option) — 25 is the closest to 30.">
+            <select style={inp} value={f.radiusMiles} onChange={set("radiusMiles")}>
+              <option value="">Default (city match only)</option>
+              <option value="5">5 miles</option>
+              <option value="10">10 miles</option>
+              <option value="15">15 miles</option>
+              <option value="25">25 miles (closest to 30)</option>
+              <option value="50">50 miles</option>
+            </select>
+          </F>
+        </div>
         <F label="Target role searches" hint="One per line or comma-separated; blank = AI suggests from CV. Room for 20+ at a glance.">
           <textarea style={{ ...inp, height: 220, fontFamily: "inherit" }} value={f.queries} onChange={set("queries")}
             placeholder={"product manager\nbusiness analyst\ndata analyst\n..."} />

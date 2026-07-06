@@ -27,9 +27,14 @@ async function handle(req) {
     return Response.json({ error: "401 wrong password" }, { status: 401 });
   if (!process.env.APIFY_TOKEN) return Response.json({ error: "APIFY_TOKEN not set" }, { status: 500 });
 
-  const { mode, queries, location, dreamCompanies, seniorOk } = await req.json();
+  const { mode, queries, location, dreamCompanies, seniorOk, radiusMiles } = await req.json();
   if (!queries?.length || !location)
     return Response.json({ error: "No profile search settings — create a profile on the Setup page" }, { status: 400 });
+
+  // The LinkedIn actor only accepts these exact radii (miles) — anything
+  // else is silently dropped so an unsupported value can't break the search.
+  const VALID_RADII = ["5", "10", "15", "25", "50"];
+  const distance = VALID_RADII.includes(String(radiusMiles)) ? { distance: String(radiusMiles) } : {};
 
   const dream = mode === "dream";
   const sponsor = mode === "sponsor";
@@ -41,6 +46,7 @@ async function handle(req) {
         publishedAt: "r604800",
         maxItems: 150,
         saveOnlyUniqueItems: true,
+        ...distance,
       }
     : sponsor
     ? {
@@ -54,6 +60,7 @@ async function handle(req) {
         publishedAt: "r604800",
         maxItems: 150,
         saveOnlyUniqueItems: true,
+        ...distance,
       }
     : {
         keyword: queries.slice(0, 6),
@@ -61,6 +68,7 @@ async function handle(req) {
         publishedAt: "r604800",
         maxItems: 150,
         saveOnlyUniqueItems: true,
+        ...distance,
       };
 
   const r = await fetch(

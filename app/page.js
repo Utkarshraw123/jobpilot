@@ -62,7 +62,7 @@ export default function Dashboard() {
       const r = await fetch("/api/refresh", {
         method: "POST",
         headers: { "content-type": "application/json", "x-pass": pw() },
-        body: JSON.stringify({ mode, queries: active.queries, location: active.location, dreamCompanies: active.dreamCompanies, seniorOk: active.seniorOk }),
+        body: JSON.stringify({ mode, queries: active.queries, location: active.location, dreamCompanies: active.dreamCompanies, seniorOk: active.seniorOk, radiusMiles: active.radiusMiles }),
       });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `server error ${r.status} — try again`);
       const fresh = await r.json();
